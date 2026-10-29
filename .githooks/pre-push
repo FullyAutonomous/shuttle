@@ -1,14 +1,97 @@
 #!/usr/bin/env bash
-# pre-push — refuse to publish a commit that adds agent state or a secret.
-# Git hands us the refs on stdin:
-#   <local-ref> <local-sha> <remote-ref> <remote-sha>
-# The global core.hooksPath shim replays that stdin, so read it and forward it.
-# Source of truth for the rules: scripts/guard/sensitive-guard.sh
+# pre-push — refuse a push that breaks the workflow rules, then run the secret guard.
+#
+# Rules (scripts/git/lib.sh is the source of truth):
+#   1. no update of a protected branch — create, fast-forward, force or delete.
+#      Keyed on the REMOTE ref, so `git push origin HEAD:main` from a feature branch
+#      is caught. No tty override: the machine-global guard's interactive prompt
+#      cannot get past this. The only bypass is `git push --no-verify`, a human act.
+#   2. the destination branch name must follow the convention. Tags are skipped.
+#      `HEAD` as a local ref is resolved, never matched as the string "HEAD".
+#   3. deleting a remote branch is allowed only when its tip is already in main by
+#      ancestry or patch equivalence — this repo squash-merges, so ancestry alone
+#      would refuse every legitimate deletion.
+#   4. a non-fast-forward update of a non-protected branch is allowed, with a note.
+#
+# Then scripts/guard/sensitive-guard.sh push runs unchanged.
 set -uo pipefail
 
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-guard="$root/scripts/guard/sensitive-guard.sh"
-[ -x "$guard" ] || exit 0
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# shellcheck source=lib.sh
+. "$ROOT/scripts/git/lib.sh" 2>/dev/null || exit 0
+
+REMOTE="${1:-origin}"
+GUARD="$ROOT/scripts/guard/sensitive-guard.sh"
+ZERO=0000000000000000000000000000000000000000
 
 input="$(cat)"
-printf '%s\n' "$input" | "$guard" push "${1:-origin}"
+
+# Base branch for delete-safety: the remote's main if we have it, else a local main.
+base=""
+for cand in "$REMOTE/main" "origin/main" "main" "master"; do
+  if git rev-parse --verify -q "$cand" >/dev/null 2>&1; then base="$cand"; break; fi
+done
+
+problems=()
+while IFS=' ' read -r lref lsha rref rsha; do
+  [ -n "${rref:-}" ] || continue
+  [ -n "${lsha:-}" ] || continue
+
+  rname="${rref#refs/heads/}"
+  [ "$rname" = "$rref" ] && continue          # tags and other refs: not our business
+
+  # 1. protected destination
+  if is_protected "$rname"; then
+    problems+=("  - $rref is protected: merges arrive by pull request")
+    continue
+  fi
+
+  # 2. name of the destination, and of the local branch when it is a branch.
+  #    Deletions are exempt: nothing is published, so a legacy misnamed branch can
+  #    still be cleaned up. Protected names were already refused above.
+  if [ "$lsha" != "$ZERO" ]; then
+    if ! valid_branch "$rname"; then
+      problems+=("  - destination branch name '$rname' does not follow the convention")
+    fi
+    case "$lref" in
+      refs/heads/*)
+        lname="${lref#refs/heads/}"
+        if ! is_protected "$lname" && ! valid_branch "$lname"; then
+          problems+=("  - local branch name '$lname' does not follow the convention")
+        fi
+        ;;
+    esac
+  fi
+
+  if [ "$lsha" = "$ZERO" ]; then
+    # 3. deleting a remote branch: refuse unless the work is already in main
+    if [ -z "$base" ]; then
+      problems+=("  - delete $rname: cannot resolve a base branch — run 'git fetch' first")
+    elif merged_into "$base" "$rsha"; then
+      :
+    else
+      problems+=("  - delete $rname: tip $rsha is not in $base" \
+                 "    (unmerged — or a multi-commit squash merge, which is not" \
+                 "     locally detectable; use 'git push --no-verify origin --delete $rname' if you are sure)")
+    fi
+  elif [ "${rsha:-$ZERO}" != "$ZERO" ]; then
+    # 4. advisory only, never blocks
+    if ! git merge-base --is-ancestor "$rsha" "$lsha" 2>/dev/null; then
+      note "force-push to $rname (non-fast-forward) — allowed: $rname is not protected"
+    fi
+  fi
+done <<<"$input"
+
+if [ "${#problems[@]}" -gt 0 ]; then
+  refuse "push breaks the workflow rules" "${problems[@]}" \
+    "" \
+    "Branch naming and lifecycle: scripts/git/README.md" \
+    "Deliberate bypass (human only): git push --no-verify"
+  exit 1
+fi
+
+if [ -x "$GUARD" ]; then
+  printf '%s\n' "$input" | "$GUARD" push "$REMOTE"
+  exit $?
+fi
+exit 0

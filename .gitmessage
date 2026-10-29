@@ -1,0 +1,18 @@
+# Shuttle — commit message template (installed by scripts/git/setup.sh)
+#
+# <type>(<scope>): <description>
+#
+# types: feat fix hotfix chore docs refactor test perf build ci style revert release
+# scope: optional, e.g. runtime, admin, builder — comma-separated for several
+#        feat(builder, cargo-shuttle): ...
+# description: imperative, lowercase is not required, <= 72 chars, no trailing period
+# body: why, wrapped at 72
+# footer: Refs: #123
+#
+# Recorded as wip: for checkpoints. No AI attribution — the human is the sole author.
+#
+# This template is comments only on purpose: comment lines are stripped by git and
+# by .githooks/commit-msg, so nothing here can become a real commit subject, and
+# nothing here can trip the attribution rule.
+#
+# Lines starting with '#' are ignored.

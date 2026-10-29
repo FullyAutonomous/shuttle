@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# install-git-hooks.sh — put the project's guard hooks where git actually runs them.
+# install-git-hooks.sh — put the project's hooks where git actually runs them.
 #
 # This machine has a global core.hooksPath (~/.claude/git-hooks) whose shim chains
 # global guard -> $GIT_COMMON_DIR/hooks/<name>, so installing into the common git
-# dir is correct AND the global guard still runs first. The installer verifies that
+# dir is correct AND the global guard still runs first. The installer verifies the
 # chain and warns loudly if the configured hooksPath does not forward.
 #
-# Re-runnable. Never clobbers a hook it does not own: an existing foreign hook is
-# moved to <name>.pre-guard-backup once.
+# Idempotent: running it twice leaves the same hooks in place. A hook it does not
+# own is moved to <name>.pre-guard-backup once, never silently overwritten.
 set -uo pipefail
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -16,16 +16,19 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 COMMON="$(git rev-parse --path-format=absolute --git-common-dir)" || exit 1
 HOOKDIR="$COMMON/hooks"
-HOOKS="pre-commit pre-push"
+
+# Fixed list: never install a stray README, .DS_Store or editor backup.
+HOOKS="pre-commit commit-msg pre-push"
+MARKER="# Installed by scripts/guard/install-git-hooks.sh"
 
 mkdir -p "$HOOKDIR"
 
 for name in $HOOKS; do
   target="$HOOKDIR/$name"
 
-  if [ -e "$target" ] && ! grep -q 'sensitive-guard' "$target" 2>/dev/null; then
+  if [ -e "$target" ] && ! head -5 "$target" 2>/dev/null | grep -qF "$MARKER"; then
     if [ -e "$target.pre-guard-backup" ]; then
-      echo "install-git-hooks: $name exists and is not ours, and a backup already exists." >&2
+      echo "install-git-hooks: $name exists, is not ours, and a backup already exists." >&2
       echo "  Move it aside yourself: mv '$target' '$target.$(date +%Y%m%d%H%M%S)'" >&2
       exit 1
     fi
@@ -35,7 +38,7 @@ for name in $HOOKS; do
 
   {
     echo '#!/usr/bin/env bash'
-    echo "# Installed by scripts/guard/install-git-hooks.sh — do not edit."
+    echo "$MARKER — do not edit."
     echo "# Source of truth: .githooks/$name"
     echo 'set -uo pipefail'
     echo "root=\"\$(git rev-parse --show-toplevel 2>/dev/null)\" || exit 0"
@@ -47,8 +50,9 @@ for name in $HOOKS; do
   echo "  installed $target"
 done
 
-chmod +x "$ROOT/.githooks/pre-commit" "$ROOT/.githooks/pre-push" \
-         "$ROOT/scripts/guard/sensitive-guard.sh" 2>/dev/null || true
+for f in "$ROOT"/.githooks/* "$ROOT"/scripts/git/*.sh "$ROOT"/scripts/guard/*.sh; do
+  [ -f "$f" ] && chmod +x "$f" 2>/dev/null
+done
 
 hp="$(git config --get core.hooksPath || true)"
 echo
@@ -69,4 +73,5 @@ else
 fi
 
 echo
-echo "Verify with: scripts/guard/selftest.sh"
+echo "Docs: scripts/git/README.md"
+echo "Prove it: scripts/git/selftest.sh && scripts/guard/selftest.sh"

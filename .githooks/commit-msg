@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# commit-msg — enforce the commit message convention (Angular, per CONTRIBUTING.md)
+# and the workspace's no-AI-attribution rule.
+#
+# The message file git hands us is NOT just what was typed: it holds the configured
+# template, git's own "# ..." hints, and — with `commit --verbose` — the whole diff
+# below a scissors line. All of that is stripped before validation, otherwise a
+# template that documents the ban would trip the ban, and a diff would be read as
+# the message.
+#
+# Rules live in scripts/git/lib.sh. Full documentation: scripts/git/README.md
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# shellcheck source=lib.sh
+. "$ROOT/scripts/git/lib.sh" 2>/dev/null || exit 0
+
+msg_file="${1:-}"
+[ -n "$msg_file" ] && [ -f "$msg_file" ] || exit 0
+
+# 1. drop everything from the scissors line down (commit --verbose diff)
+# 2. drop comment lines, honouring core.commentChar
+cleaned="$(awk '/^-{2,} >8 -{2,}$/ { exit } { print }' "$msg_file" \
+  | git stripspace --strip-comments 2>/dev/null)"
+cleaned="$(printf '%s\n' "$cleaned" | git stripspace 2>/dev/null)"
+
+if [ -z "$cleaned" ]; then
+  refuse "empty commit message" \
+    "Write a subject line: <type>(<scope>): <description>" \
+    "  types: ${BRANCH_TYPES//|/, }" \
+    "  example: feat(runtime): retry on 503"
+  exit 1
+fi
+
+subject="$(printf '%s\n' "$cleaned" | head -1)"
+
+# --- no AI attribution, anywhere in the message ----------------------------
+if printf '%s\n' "$cleaned" | grep -Eqi -- "$AI_TRAILER_RE"; then
+  refuse "AI attribution in the commit message" \
+    "  subject: $subject" \
+    "" \
+    "This workspace records the human as the sole author. Remove the trailer:" \
+    "  Co-Authored-By: <assistant> ..."
+  exit 1
+fi
+if printf '%s\n' "$cleaned" | grep -Eqi -- "$AI_MARKER_RE" || \
+   printf '%s\n' "$cleaned" | grep -q '🤖'; then
+  refuse "AI attribution in the commit message" \
+    "  subject: $subject" \
+    "" \
+    "Remove the 'Generated with ...' line or the robot marker."
+  exit 1
+fi
+
+# --- shape -----------------------------------------------------------------
+if ! printf '%s' "$subject" | grep -Eq -- "$COMMIT_SUBJECT_RE"; then
+  refuse "commit subject does not follow the convention" \
+    "  got: $subject" \
+    "" \
+    "Expected: <type>(<scope>): <description>" \
+    "  types: ${BRANCH_TYPES//|/, }" \
+    "  scope is optional and may be a comma-separated list: feat(builder, cargo-shuttle): ..." \
+    "  allowed verbatim: Merge ..., Revert ..., fixup! ..., squash! ..., wip: ..." \
+    "Full rules: scripts/git/README.md"
+  exit 1
+fi
+
+len=${#subject}
+if ! printf '%s' "$subject" | grep -Eq -- "$COMMIT_EXEMPT_RE"; then
+  if [ "$len" -gt "$MAX_SUBJECT_LEN" ]; then
+    refuse "commit subject too long ($len > $MAX_SUBJECT_LEN characters)" \
+      "  got: $subject" \
+      "Move the detail into the body, which is not length-checked."
+    exit 1
+  fi
+  case "$subject" in
+    *.)
+      refuse "commit subject ends with a period" \
+        "  got: $subject" \
+        "Drop the trailing '.'."
+      exit 1
+      ;;
+  esac
+fi
+
+exit 0

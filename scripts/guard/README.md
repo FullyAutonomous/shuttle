@@ -16,9 +16,12 @@ When you add a category, add it to both — the syntaxes differ (globs vs POSIX 
 scripts/guard/install-git-hooks.sh
 ```
 
-It installs `pre-commit` and `pre-push` into the repo's real hooks directory, keeps any
-pre-existing hook as `<name>.pre-guard-backup`, and reports which `core.hooksPath` is in
-effect. On a machine with a global `core.hooksPath` whose shim chains to
+It installs `pre-commit`, `commit-msg` and `pre-push` into the repo's real hooks directory,
+keeps any pre-existing hook as `<name>.pre-guard-backup`, and reports which `core.hooksPath` is
+in effect. It is idempotent.
+
+The branch, commit-message and push rules that run alongside this guard are documented in
+`scripts/git/README.md` — this page covers only agent state and secrets. On a machine with a global `core.hooksPath` whose shim chains to
 `$GIT_COMMON_DIR/hooks/<name>` (the setup here), the global guard still runs first.
 
 Hooks are local, not versioned by git. A fresh clone needs the installer again.

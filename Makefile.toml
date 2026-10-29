@@ -196,3 +196,16 @@ args = ["scripts/guard/install-git-hooks.sh"]
 [tasks.guard-selftest]
 command = "bash"
 args = ["scripts/guard/selftest.sh"]
+
+# Git workflow: one command per clone, a lifecycle report, and the rule proofs.
+[tasks.git-setup]
+command = "bash"
+args = ["scripts/git/setup.sh"]
+
+[tasks.git-doctor]
+command = "bash"
+args = ["scripts/git/doctor.sh"]
+
+[tasks.git-selftest]
+command = "bash"
+args = ["scripts/git/selftest.sh"]
