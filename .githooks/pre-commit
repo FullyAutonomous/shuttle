@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# pre-commit — refuse to record a commit that adds agent state or a secret.
+# Source of truth for the rules: scripts/guard/sensitive-guard.sh
+# Installed into the real hooks dir by scripts/guard/install-git-hooks.sh.
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+guard="$root/scripts/guard/sensitive-guard.sh"
+[ -x "$guard" ] || exit 0
+
+exec "$guard" staged

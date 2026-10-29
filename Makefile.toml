@@ -181,3 +181,18 @@ end
 script = '''
 find . -type d \( -name target -or -name node_modules \) | xargs rm -rf
 '''
+
+# Never-commit guard: what is already tracked, and does anything sensitive pass?
+# Install the hooks first: cargo make guard-install
+[tasks.guard]
+command = "bash"
+args = ["scripts/guard/sensitive-guard.sh", "tree"]
+
+[tasks.guard-install]
+command = "bash"
+args = ["scripts/guard/install-git-hooks.sh"]
+
+# Prove both hooks actually block, in a throwaway repo.
+[tasks.guard-selftest]
+command = "bash"
+args = ["scripts/guard/selftest.sh"]

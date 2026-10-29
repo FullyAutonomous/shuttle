@@ -1,0 +1,21 @@
+# gitleaks config for this clone.
+#
+# The default rule set applies in full. One deliberate allowlist, described below.
+# Everything else gitleaks reports is a real finding.
+
+[extend]
+useDefault = true
+
+# PostHog "project API key" (phc_...) in upstream install.ps1, from commit bb39e68e.
+# PostHog project keys are public by design: they are embedded in client-side JS
+# and only ingest events.
+#
+# Scoped two ways: only the generic-api-key rule, and only the phc_ shape. A path
+# filter is deliberately NOT used — a global allowlist `paths` entry matches at
+# file level, so allowlisting install.ps1 would have hidden every other finding in
+# that file. Any github/aws/stripe/private-key finding is still reported.
+[[allowlists]]
+description = "PostHog project ingest key (public by design)"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''phc_[A-Za-z0-9]{24,}''']

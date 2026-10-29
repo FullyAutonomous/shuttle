@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# pre-push — refuse to publish a commit that adds agent state or a secret.
+# Git hands us the refs on stdin:
+#   <local-ref> <local-sha> <remote-ref> <remote-sha>
+# The global core.hooksPath shim replays that stdin, so read it and forward it.
+# Source of truth for the rules: scripts/guard/sensitive-guard.sh
+set -uo pipefail
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+guard="$root/scripts/guard/sensitive-guard.sh"
+[ -x "$guard" ] || exit 0
+
+input="$(cat)"
+printf '%s\n' "$input" | "$guard" push "${1:-origin}"

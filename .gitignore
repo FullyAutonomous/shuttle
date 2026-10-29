@@ -1,3 +1,134 @@
+# ============================================================================
+#  NEVER-COMMIT ZONE
+#
+#  Enforced twice:
+#    1. here, so these files never appear in `git status` and are never swept up
+#       by `git add .`;
+#    2. by the pre-commit / pre-push hooks in .githooks/, which is the layer a
+#       `git add -f` or an edited .gitignore cannot bypass.
+#
+#  The rules mirror scripts/guard/sensitive-guard.sh — keep both in sync.
+#  Install the hooks once per clone:  scripts/guard/install-git-hooks.sh
+#  Audit what is already tracked:     cargo make guard
+# ============================================================================
+
+# --- Agent / assistant state and instruction dirs (any depth: always tool state)
+.agent/
+.agents/
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.continue/
+.serena/
+.specstory/
+.gemini/
+.anthropic/
+.opencode/
+.aider*
+.mcp.json
+
+# --- Agent working dirs (repo root only; crate-level dirs stay usable) -------
+/agent/
+/agents/
+
+# --- Local-only working dirs: worktrees, plans, generated docs ---------------
+.worktrees/
+.worktree/
+.docs/
+.plans/
+/docs/
+
+# --- Environment files ------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.dist
+!.env.schema
+.envrc
+
+# --- Keys, keystores, credential blobs --------------------------------------
+# (*.asc is intentionally not blocked: it is the normal extension for PGP
+#  public keys and detached signatures. A private PGP block is caught by the
+#  content scan in sensitive-guard.sh instead.)
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.kdbx
+*.ppk
+*.ovpn
+*.har
+*.pcap
+*.pcapng
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+!*.pub
+.netrc
+.npmrc
+.pypirc
+.htpasswd
+.git-credentials
+.kube/
+kubeconfig*
+.docker/config.json
+.cargo/credentials
+.cargo/credentials.toml
+auth.json
+
+# --- Named credential / secret files ----------------------------------------
+credentials*.json
+credentials*.yaml
+credentials*.yml
+credentials*.toml
+credentials*.ini
+credentials*.txt
+credentials*.env
+secret.json
+secrets.json
+secret.yaml
+secrets.yaml
+secret.yml
+secrets.yml
+secret.toml
+secrets.toml
+secret.ini
+secrets.ini
+secret.txt
+secrets.txt
+secret.env
+secrets.env
+service-account*.json
+service_account*.json
+acme*.json
+
+# --- Infrastructure state and variable files --------------------------------
+secrets.tfvar
+secrets.tfvars
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+.terraform/
+!/.terraform.lock.hcl
+
+# --- Local databases (fixtures must be renamed <name>.db.example, not carved out)
+*.sqlite*
+*.db
+*.db3
+*.mdb
+
+# ============================================================================
+#  End never-commit zone. Everything below is upstream project hygiene.
+# ============================================================================
+
 # Rust
 .cargo/*
 !.cargo/audit.toml
@@ -16,18 +147,11 @@ recipe.json
 *.iml
 .idea/
 
-# Credentials for running ACME commands
-acme*.json
-
 # VS Code
 .vscode/
 
 # OS Specific
 .DS_Store
-
-# Terraform
-**/secrets.tfvar
-**/.terraform*
 
 # direnv cache directory
 .direnv/
@@ -35,13 +159,10 @@ acme*.json
 .shuttle-*
 docker-compose.rendered.yml
 
-.env
 node_modules/
 package.json
 yarn.lock
 
 *.wasm
-*.sqlite*
-.envrc
 
 /private
